@@ -34,8 +34,10 @@ class NETWORKTIMESYNC_API UNetworkTimeSyncComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:
-	
 	UNetworkTimeSyncComponent();
+
+	UFUNCTION()
+	void ForceSyncNetworkTime();
 
 protected:
 	
@@ -46,16 +48,16 @@ protected:
 	void SynchronizeNetworkTime();
 
 	UFUNCTION(Server, Reliable)
-	void Server_ReliableRequestWorldTime(const float ClientTimestamp);
+	void Server_ReliableRequestWorldTime(const float ClientSendTimestamp, bool ForceSync);
 
 	UFUNCTION(Server, Unreliable)
-	void Server_UnreliableRequestWorldTime(const float ClientTimestamp);
+	void Server_UnreliableRequestWorldTime(const float ClientSendTimestamp, bool ForceSync);
 
 	UFUNCTION(Client, Reliable)
-	void Client_ReliableSendWorldTime(const float ClientTimestamp, const float ServerTimestamp);
+	void Client_ReliableSendWorldTime(const float ClientSendTimestamp, const float ServerTimestamp, bool ForceSync);
 
 	UFUNCTION(Client, Unreliable)
-	void Client_UnreliableSendWorldTime(const float ClientTimestamp, const float ServerTimestamp);
+	void Client_UnreliableSendWorldTime(const float ClientSendTimestamp, const float ServerTimestamp, bool ForceSync);
 
 	UPROPERTY()
 	FTimerHandle Handle_SynchronizeNetworkTime;

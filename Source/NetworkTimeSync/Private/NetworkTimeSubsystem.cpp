@@ -24,6 +24,7 @@ SOFTWARE.
 
 #include "NetworkTimeSubsystem.h"
 #include "NetworkTimeSync.h"
+#include "Logging/StructuredLog.h"
 
 UNetworkTimeSubsystem* UNetworkTimeSubsystem::Get(UObject* WorldContextObject)
 {
@@ -47,18 +48,40 @@ float UNetworkTimeSubsystem::GetServerWorldTime() const
 	return GetWorld()->GetTimeSeconds() + ServerWorldTimeDelta;
 }
 
-void UNetworkTimeSubsystem::OnServerWorldTimeReceived(const float ClientTime, const float ServerTime)
+double UNetworkTimeSubsystem::GetTimeSinceSubsystemStart() const
 {
-	const float RoundTripTime = GetWorld()->GetTimeSeconds() - ClientTime;
-	if (RoundTripTime < ShortestRoundTripTime)
+	return (FDateTime::UtcNow() - StartTimestamp).GetTotalSeconds();
+}
+
+void UNetworkTimeSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+
+	StartTimestamp = FDateTime::UtcNow();
+}
+
+void UNetworkTimeSubsystem::OnServerWorldTimeReceived(const float ClientSendTime, const float ServerTime, bool ForceSync)
+{
+	float ClientReceiveTime = GetWorld()->GetTimeSeconds();
+	float RoundTripTime = ClientReceiveTime - ClientSendTime;
+	ensureAlwaysMsgf(RoundTripTime >= 0.0f, TEXT("RTT is negative. ClientSendTime: %f, ClientReceiveTime: %f"), ClientSendTime, ClientReceiveTime);
+	// find the minimum RTT as delta to calculate theta
+	if (RoundTripTime >= 0.0f && (ForceSync || RoundTripTime < ShortestRoundTripTime))
 	{
-		ShortestRoundTripTime = RoundTripTime;
+		ShortestRoundTripTime = FMath::Min(RoundTripTime, ShortestRoundTripTime);
+		
 		// Obviously, RTT / 2 isn't representative of all networking conditions since it assumes that RTT is perfectly split 50/50.
 		// Better than nothing.
-		const float OldDelta = ServerWorldTimeDelta;
-		ServerWorldTimeDelta = ServerTime - ClientTime - (ShortestRoundTripTime / 2.0f);
-		UE_LOG(LogNetworkTimeSync, Log, TEXT("Received new server world time: %f | ClientTimestamp: %f, ServerTimestamp: %f, RTT: %f, WorldTimeDelta: %f"),
-			GetServerWorldTime(), ClientTime, ServerTime, RoundTripTime, ServerWorldTimeDelta);
+		float OldDelta = ServerWorldTimeDelta;
+		ServerWorldTimeDelta = ServerTime - ClientSendTime - (RoundTripTime / 2.0f);
+		// FIXME and Temp: \r\n is Windows' line break and might not work on mac/linux.
+		UE_LOGFMT(LogNetworkTimeSync, Log, "NTP server world time: {0} ms\r\n\t t0: {1} ms\r\n\t t1t2: {2} ms\r\n\t t3: {3}ms \r\n\t RTT: {4} ms, WorldTimeDelta: {5} ms",
+			GetServerWorldTime() * 1000.0f,
+			ClientSendTime * 1000.0f,
+			ServerTime * 1000.0f,
+			ClientReceiveTime * 1000.0f,
+			RoundTripTime * 1000.0f,
+			ServerWorldTimeDelta * 1000.0f);
 		
 		OnNetworkClockSynchronized.Broadcast(OldDelta, ServerWorldTimeDelta);
 	}

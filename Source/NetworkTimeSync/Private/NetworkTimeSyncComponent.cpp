@@ -59,54 +59,71 @@ void UNetworkTimeSyncComponent::BeginPlay()
 	}
 }
 
+void UNetworkTimeSyncComponent::ForceSyncNetworkTime()
+{
+	ensureMsgf(GetWorld()->GetNetMode() == NM_Client, TEXT("ForceSyncNetworkTime should only be called on the client."));
+	float ClientSendTimestamp = GetWorld()->GetTimeSeconds();
+	if (bUseUnreliableRPCs)
+	{
+		Server_UnreliableRequestWorldTime(ClientSendTimestamp, true);
+	}
+	else
+	{
+		Server_ReliableRequestWorldTime(ClientSendTimestamp, true);
+	}
+}
+
 void UNetworkTimeSyncComponent::SynchronizeNetworkTime()
 {
+	float ClientSendTimestamp = GetWorld()->GetTimeSeconds();
 	if (bUseUnreliableRPCs)
 	{
-		Server_UnreliableRequestWorldTime(GetWorld()->GetTimeSeconds());
+		Server_UnreliableRequestWorldTime(ClientSendTimestamp, false);
 	}
 	else
 	{
-		Server_ReliableRequestWorldTime(GetWorld()->GetTimeSeconds());
+		Server_ReliableRequestWorldTime(ClientSendTimestamp, false);
 	}
 }
 
-void UNetworkTimeSyncComponent::Server_ReliableRequestWorldTime_Implementation(const float ClientTimestamp)
+void UNetworkTimeSyncComponent::Server_ReliableRequestWorldTime_Implementation(const float ClientSendTimestamp, bool ForceSync)
 {
+	float ServerTimestamp = GetWorld()->GetTimeSeconds();
 	if (bUseUnreliableRPCs)
 	{
-		Client_UnreliableSendWorldTime(ClientTimestamp, GetWorld()->GetTimeSeconds());
+		Client_UnreliableSendWorldTime(ClientSendTimestamp, ServerTimestamp, ForceSync);
 	}
 	else
 	{
-		Client_ReliableSendWorldTime(ClientTimestamp, GetWorld()->GetTimeSeconds());
+		Client_ReliableSendWorldTime(ClientSendTimestamp, ServerTimestamp, ForceSync);
 	}
 }
 
-void UNetworkTimeSyncComponent::Server_UnreliableRequestWorldTime_Implementation(const float ClientTimestamp)
+void UNetworkTimeSyncComponent::Server_UnreliableRequestWorldTime_Implementation(const float ClientSendTimestamp, bool ForceSync)
 {
+	float ServerTimestamp = GetWorld()->GetTimeSeconds();
 	if (bUseUnreliableRPCs)
 	{
-		Client_UnreliableSendWorldTime(ClientTimestamp, GetWorld()->GetTimeSeconds());
+		Client_UnreliableSendWorldTime(ClientSendTimestamp, ServerTimestamp, ForceSync);
 	}
 	else
 	{
-		Client_ReliableSendWorldTime(ClientTimestamp, GetWorld()->GetTimeSeconds());
+		Client_ReliableSendWorldTime(ClientSendTimestamp, ServerTimestamp, ForceSync);
 	}
 }
 
-void UNetworkTimeSyncComponent::Client_ReliableSendWorldTime_Implementation(const float ClientTimestamp, const float ServerTimestamp)
+void UNetworkTimeSyncComponent::Client_ReliableSendWorldTime_Implementation(const float ClientSendTimestamp, const float ServerTimestamp, bool ForceSync)
 {
 	if (NetworkTimeSubsystem.IsValid())
 	{
-		NetworkTimeSubsystem->OnServerWorldTimeReceived(ClientTimestamp, ServerTimestamp);
+		NetworkTimeSubsystem->OnServerWorldTimeReceived(ClientSendTimestamp, ServerTimestamp, ForceSync);
 	}
 }
 
-void UNetworkTimeSyncComponent::Client_UnreliableSendWorldTime_Implementation(const float ClientTimestamp, const float ServerTimestamp)
+void UNetworkTimeSyncComponent::Client_UnreliableSendWorldTime_Implementation(const float ClientSendTimestamp, const float ServerTimestamp, bool ForceSync)
 {
 	if (NetworkTimeSubsystem.IsValid())
 	{
-		NetworkTimeSubsystem->OnServerWorldTimeReceived(ClientTimestamp, ServerTimestamp);
+		NetworkTimeSubsystem->OnServerWorldTimeReceived(ClientSendTimestamp, ServerTimestamp, ForceSync);
 	}
 }

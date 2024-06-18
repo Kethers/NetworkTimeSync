@@ -58,6 +58,10 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Network Time Subsystem")
 	FORCEINLINE float GetServerWorldTimeDelta() const { return ServerWorldTimeDelta; }
 
+	/** Returns the time since subsystem starts, with unit in second and precision in microsecond */
+	UFUNCTION()
+	double GetTimeSinceSubsystemStart() const;
+
 	/**
 	 * Delegate fired on clients when synchronizing the clock.
 	 * Only called if accuracy increased.
@@ -65,12 +69,14 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Network Time Subsystem")
 	FOnNetworkClockSynchronized OnNetworkClockSynchronized;
 
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+
 protected:
 
 	friend class UNetworkTimeSyncComponent;
 	
 	/** Called by the UNetworkTimeSyncComponent when it receives an updated world time from the server. */
-	void OnServerWorldTimeReceived(const float ClientTime, const float ServerTime);
+	void OnServerWorldTimeReceived(const float ClientSendTime, const float ServerTime, bool ForceSync);
 
 	/**
 	 * The shortest round trip time recorded upon synchronization.
@@ -83,4 +89,6 @@ protected:
 	 * Clientside only.
 	 */
 	float ServerWorldTimeDelta = 0.0f;
+
+	FDateTime StartTimestamp;
 };
